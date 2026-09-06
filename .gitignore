@@ -30,5 +30,5 @@ playwright-report/
 !assets/icons/*.png
 !assets/ip-logo/*.png
 !assets/avatar/*.png
-
-README.md
+!assets/banner.png
+!assets/banner_en.png

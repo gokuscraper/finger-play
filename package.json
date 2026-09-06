@@ -1,7 +1,7 @@
 {
   "name": "finger-play",
   "version": "1.0.0",
-  "description": "**Try it: https://sophiamyang.github.io/finger-frame-effect-ai/**",
+  "description": "捏个框 · Finger Play：用双手比个取景框，框里是世界。纯前端手指交互视频工具。",
   "main": "app.js",
   "directories": {
     "example": "examples"
@@ -11,16 +11,16 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/sophiamyang/finger-frame-effect-ai.git"
+    "url": "git+https://github.com/gokuscraper/finger-play.git"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "keywords": ["finger-frame", "hand-tracking", "mediapipe", "video-filters", "canvas", "pwa"],
+  "author": "Goku Scraper <contact@gokuscraper.com>",
+  "license": "GPL-2.0",
   "type": "commonjs",
   "bugs": {
-    "url": "https://github.com/sophiamyang/finger-frame-effect-ai/issues"
+    "url": "https://github.com/gokuscraper/finger-play/issues"
   },
-  "homepage": "https://github.com/sophiamyang/finger-frame-effect-ai#readme",
+  "homepage": "https://github.com/gokuscraper/finger-play#readme",
   "devDependencies": {
     "@playwright/test": "^1.62.1",
     "playwright": "^1.62.1"
