@@ -930,3 +930,46 @@ test("贴图：模型加载 + 画到画布（无摄像头冒烟）", async ({ pa
   );
   expect(fatal, fatal.join("\n")).toEqual([]);
 });
+
+test("水印：录制画布中始终在左上角正向（镜像开/关都正确）", async ({ page }) => {
+  await page.goto(BASE);
+  await page.waitForFunction(() => window.__fingerPlayTest && window.__fingerPlayTest.drawWatermark);
+
+  // 在 liveCanvas 画水印 → 同步到录制画布 → 检查录制画布左上角有水印像素、右上角没有
+  async function measureMirror(mirroredOn) {
+    return page.evaluate((on) => {
+      const api = window.__fingerPlayTest;
+      const live = api.liveCanvas;
+      const rec = api.recCanvas;
+      live.width = 1280;
+      live.height = 720;
+      const liveCtx = live.getContext("2d");
+      const recCtx = rec.getContext("2d");
+      api.setMirror(on);
+      liveCtx.clearRect(0, 0, live.width, live.height);
+      api.drawWatermark(liveCtx);
+      api.syncRecCanvas();
+      function countOpaque(x0, y0, w, h) {
+        const d = recCtx.getImageData(x0, y0, w, h).data;
+        let n = 0;
+        for (let i = 3; i < d.length; i += 4) if (d[i] > 40) n++;
+        return n;
+      }
+      const W = rec.width;
+      return {
+        left: countOpaque(10, 10, 220, 70),
+        right: countOpaque(W - 230, 10, 220, 70),
+      };
+    }, mirroredOn);
+  }
+
+  // 镜像开启：水印在录制画布左侧（用户看到左上角正向）
+  const on = await measureMirror(true);
+  expect(on.left, "镜像开：水印应在录制画布左侧").toBeGreaterThan(2000);
+  expect(on.right, "镜像开：录制画布右侧无水印").toBeLessThan(100);
+
+  // 镜像关闭：水印仍在录制画布左侧
+  const off = await measureMirror(false);
+  expect(off.left, "镜像关：水印应在录制画布左侧").toBeGreaterThan(2000);
+  expect(off.right, "镜像关：录制画布右侧无水印").toBeLessThan(100);
+});

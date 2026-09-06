@@ -140,6 +140,93 @@ sceneCanvas.width = LIVE_CANVAS_W;
 sceneCanvas.height = LIVE_CANVAS_H;
 const sceneCtx = sceneCanvas.getContext("2d");
 
+// 录制画布：captureStream 抓的是 canvas 原始像素，不含 CSS 的镜像显示翻转。
+// 为了让录制内容 = 屏幕所见（水印始终在左上角正向、镜像开时画面也镜像），
+// 录制期间每帧把 liveCanvas 同步到这里（镜像开则水平翻转）。
+const recCanvas = document.createElement("canvas");
+recCanvas.width = LIVE_CANVAS_W;
+recCanvas.height = LIVE_CANVAS_H;
+const recCtx = recCanvas.getContext("2d");
+
+function syncRecCanvas() {
+  recCtx.clearRect(0, 0, LIVE_CANVAS_W, LIVE_CANVAS_H);
+  if (mirrored) {
+    recCtx.save();
+    recCtx.scale(-1, 1);
+    recCtx.translate(-LIVE_CANVAS_W, 0);
+    recCtx.drawImage(liveCanvas, 0, 0);
+    recCtx.restore();
+  } else {
+    recCtx.drawImage(liveCanvas, 0, 0);
+  }
+}
+
+// ---- 左上角水印：网站 LOGO + 「捏个框」----
+const wmLogo = new Image();
+wmLogo.src = "./assets/icons/icon-512.png";
+const WM_MARGIN = 16;
+const WM_LOGO = 24; // 与文字同高
+const WM_TEXT = "捏个框";
+const WM_FONT = 'bold 24px Nunito, "PingFang SC", "Microsoft YaHei", sans-serif';
+const WM_BADGE = { r: 0, g: 0, b: 0, a: 0.22, padX: 12, padY: 6, radius: 12 };
+
+function drawWatermark(ctx) {
+  const y = WM_MARGIN;
+  // 默认镜像开启：canvas 被 CSS scaleX(-1) 整个水平翻转。为了用户看到的
+  // 水印始终在屏幕左上角且文字正向，镜像时把水印画到 canvas 逻辑右侧，
+  // 再对水印区域做一次局部反向，抵消外层的 CSS 翻转。
+  const flip = mirrored;
+  ctx.save();
+  ctx.font = WM_FONT;
+  const textW = ctx.measureText(WM_TEXT).width;
+  const badgeW = WM_LOGO + WM_BADGE.padX + textW + WM_BADGE.padX;
+  const badgeH = WM_LOGO + WM_BADGE.padY * 2;
+  const x = flip ? liveCanvas.width - badgeW - WM_MARGIN : WM_MARGIN;
+
+  if (flip) {
+    ctx.translate(x + badgeW / 2, y + badgeH / 2);
+    ctx.scale(-1, 1);
+    ctx.translate(-(x + badgeW / 2), -(y + badgeH / 2));
+  }
+
+  // 半透明深色圆角底板，压暗视频但内容可透出
+  ctx.globalAlpha = WM_BADGE.a;
+  ctx.fillStyle = "#000";
+  roundRectPath(ctx, x, y, badgeW, badgeH, WM_BADGE.radius);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+
+  // LOGO（圆角小图标，高度与文字一致）
+  if (wmLogo.complete && wmLogo.naturalWidth > 0) {
+    const lx = x + WM_BADGE.padX, ly = y + WM_BADGE.padY;
+    ctx.save();
+    roundRectPath(ctx, lx, ly, WM_LOGO, WM_LOGO, 6);
+    ctx.clip();
+    ctx.drawImage(wmLogo, lx, ly, WM_LOGO, WM_LOGO);
+    ctx.restore();
+  }
+
+  // 文字「捏个框」
+  ctx.textBaseline = "middle";
+  ctx.fillStyle = "#fff";
+  ctx.shadowColor = "rgba(0,0,0,0.55)";
+  ctx.shadowBlur = 4;
+  ctx.fillText(WM_TEXT, x + WM_BADGE.padX + WM_LOGO + 8, y + badgeH / 2 + 1);
+  ctx.shadowBlur = 0;
+  ctx.restore();
+}
+
+function roundRectPath(ctx, x, y, w, h, r) {
+  const rr = Math.min(r, w / 2, h / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + rr, y);
+  ctx.arcTo(x + w, y, x + w, y + h, rr);
+  ctx.arcTo(x + w, y + h, x, y + h, rr);
+  ctx.arcTo(x, y + h, x, y, rr);
+  ctx.arcTo(x, y, x + w, y, rr);
+  ctx.closePath();
+}
+
 // ---- Offscreen canvases for the heavier effects (ported from finger-frame-effect) ----
 const small = document.createElement("canvas");
 const sctx = small.getContext("2d");
@@ -870,7 +957,7 @@ function updateRecLabels() {
 
 function startRecording(type, autoStopSec) {
   if (liveRecorder) return;
-  const stream = liveCanvas.captureStream(30);
+  const stream = recCanvas.captureStream(30);
   const mime =
     ["video/mp4;codecs=avc1.42E01E", "video/mp4", "video/webm;codecs=vp9", "video/webm"].find(
       (m) => MediaRecorder.isTypeSupported(m)
@@ -1119,6 +1206,12 @@ function liveLoop() {
   if (showHandPoints && lastHands && lastHands.length) {
     drawHandLandmarks(liveCtx, lastHands, LIVE_CANVAS_W, LIVE_CANVAS_H);
   }
+
+  // 左上角水印（LOGO + 捏个框），始终画在最上层
+  drawWatermark(liveCtx);
+
+  // 录制期间同步到录制画布，让录制内容 = 屏幕所见（镜像开 → 画面镜像 + 水印左上角正向）
+  if (liveRecorder) syncRecCanvas();
 
   liveRaf = requestAnimationFrame(liveLoop);
 }
@@ -1905,6 +1998,15 @@ window.__fingerPlayTest = {
   renderPillar,
   computeFiveFingers,
   i18n: { t, setLocale, getLocale, hasLocale, applyDataI18n },
+  drawWatermark,
+  wmLogo,
+  recCanvas,
+  syncRecCanvas,
+  setMirror: (on) => {
+    mirrored = !!on;
+    liveCanvas.classList.toggle("mirrored", mirrored);
+    if (btnMirror) btnMirror.classList.toggle("active", mirrored);
+  },
   sticker: {
     computeFaceRect,
     computeFaceRoll,
