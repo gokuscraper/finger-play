@@ -832,6 +832,76 @@ test("贴图：drawHandsOnTop 把手的外轮廓多边形盖到最上层", async
   expect(r.outsideRed).toBe(0); // 轮廓外保持原样（背景/真脸不漏出来）
 });
 
+test("全屏：竖屏手机下 canvas 旋转90°铺满，横屏手机不旋转", async ({ page }) => {
+  // Fake webcam so the live canvas can start (fullscreen button lives there).
+  await page.addInitScript(() => {
+    const cv = document.createElement("canvas");
+    cv.width = 640;
+    cv.height = 480;
+    const ctx = cv.getContext("2d");
+    ctx.fillStyle = "#ffb3d1";
+    ctx.fillRect(0, 0, 640, 480);
+    const stream = cv.captureStream(30);
+    navigator.mediaDevices.getUserMedia = () => Promise.resolve(stream);
+  });
+
+  async function enterFullscreen() {
+    await page.locator("#btn-live-start").click();
+    await expect(page.locator("#live-canvas-wrap")).toBeVisible({ timeout: 15000 });
+    await page.locator("#btn-fullscreen").click();
+    await page.waitForFunction(() => !!document.fullscreenElement, null, { timeout: 10000 });
+  }
+
+  // ---- 竖屏手机：canvas 旋转 90°（画面横过来铺满竖屏）----
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(BASE);
+  await enterFullscreen();
+  const portrait = await page
+    .locator("#canvas-live")
+    .evaluate((c) => {
+      const s = getComputedStyle(c);
+      return {
+        portrait: matchMedia("(orientation: portrait)").matches,
+        transform: s.transform,
+        width: parseFloat(s.width),
+        height: parseFloat(s.height),
+      };
+    });
+  expect(portrait.portrait).toBe(true);
+  // 竖屏旋转 90°：纯 rotate = matrix(0,1,-1,0,..)；默认镜像开着 = rotate90+scaleX(-1)
+  const rotate90 = portrait.transform === "matrix(0, 1, -1, 0, 0, 0)";
+  const rotate90Mirrored = portrait.transform === "matrix(0, -1, -1, 0, 0, 0)";
+  expect(rotate90 || rotate90Mirrored, `unexpected transform: ${portrait.transform}`).toBe(true);
+  // 旋转前的逻辑宽度 = 竖屏高度方向，须大于视口宽度（cover 铺满，不留细条）
+  expect(portrait.width).toBeGreaterThan(700);
+
+  // 退出全屏
+  await page.evaluate(() => document.exitFullscreen());
+  await page.waitForFunction(() => !document.fullscreenElement);
+
+  // ---- 横屏手机：canvas 不旋转，cover 铺满 ----
+  await page.setViewportSize({ width: 844, height: 390 });
+  await page.locator("#btn-fullscreen").click();
+  await page.waitForFunction(() => !!document.fullscreenElement, null, { timeout: 10000 });
+  const landscape = await page
+    .locator("#canvas-live")
+    .evaluate((c) => {
+      const s = getComputedStyle(c);
+      return {
+        landscape: matchMedia("(orientation: landscape)").matches,
+        transform: s.transform,
+        width: parseFloat(s.width),
+      };
+    });
+  expect(landscape.landscape).toBe(true);
+  // 横屏无 90° 旋转：transform 要么 none，要么只有镜像 scaleX(-1)
+  const noRotate = ["none", "matrix(-1, 0, 0, 1, 0, 0)"].includes(landscape.transform);
+  expect(noRotate, `unexpected transform: ${landscape.transform}`).toBe(true);
+  // cover 铺满宽度（width = 100vw，不含细条缩放）
+  expect(landscape.width).toBeGreaterThanOrEqual(843);
+  await page.evaluate(() => document.exitFullscreen());
+});
+
 test("贴图：模型加载 + 画到画布（无摄像头冒烟）", async ({ page }) => {
   test.setTimeout(120000);
   const errors = collectErrors(page);
