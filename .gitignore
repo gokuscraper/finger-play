@@ -1,0 +1,34 @@
+# Media (inputs/outputs stay local — don't publish personal footage)
+*.mov
+*.mp4
+*.task
+# …except the checked-in example
+!examples/final.mp4
+!examples/final.gif
+
+# Python
+.venv/
+.venv-cli/
+__pycache__/
+
+# Node / tooling
+node_modules/
+test-results/
+playwright-report/
+
+# Tooling
+.claude/
+.DS_Store
+*.log
+*.png
+*.webm
+.env
+
+# Self-hosted resources that MUST ship with the site (re-include AFTER the
+# broad excludes — gitignore is last-match-wins): hand-tracking model + icons.
+!vendor/*.task
+!assets/icons/*.png
+!assets/ip-logo/*.png
+!assets/avatar/*.png
+
+README.md

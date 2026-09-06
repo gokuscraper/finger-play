@@ -1,0 +1,31 @@
+{
+  "name": "捏个框 · Finger Play",
+  "short_name": "捏个框",
+  "description": "双手比框，框出你的专属小世界——实时滤镜 + AI 动画。",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f0e9ff",
+  "theme_color": "#f0e9ff",
+  "lang": "zh-CN",
+  "icons": [
+    {
+      "src": "/assets/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/assets/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/assets/icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

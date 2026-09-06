@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#f0e9ff" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="assets/icons/icon-192.png" />
+  <link rel="icon" type="image/png" href="assets/icons/favicon.png" />
+  <title>捏个框 · Finger Play</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header>
+    <img class="logo" src="assets/ip-logo/A2-96.png" alt="捏个框" width="44" height="44" data-i18n-alt="app.name" />
+    <div class="header-text">
+      <h1 data-i18n="app.name">捏个框</h1>
+      <div class="workflow" data-i18n="app.workflow">工作流：先录制，再合成</div>
+    </div>
+  </header>
+
+  <button class="contact-btn" id="btn-contact" aria-haspopup="dialog" aria-expanded="false" title="反馈 / 建议 / 联系作者" data-i18n-title="contact.title">💬 <span data-i18n="contact.label">反馈</span></button>
+
+  <div class="modes" role="tablist">
+    <button class="mode-btn active" data-mode="live" role="tab" aria-selected="true" data-i18n="mode.live">🎥 录制</button>
+    <button class="mode-btn" data-mode="ai" role="tab" aria-selected="false" data-i18n="mode.ai">✨ 合成</button>
+  </div>
+
+  <div class="rotate-tip" id="rotate-tip" data-i18n="tip.rotate">📱 建议横屏使用，效果更佳</div>
+
+  <!-- ============ 录制模式（默认） ============ -->
+  <div id="mode-live">
+    <div id="live-stage">
+      <div class="live-start-wrap" id="live-start-wrap">
+        <h2 data-i18n="live.start">😉 打开摄像头，露出双手，捏个框吧</h2>
+        <button class="btn primary" id="btn-live-start" data-i18n="live.openCam">📷 开启摄像头</button>
+        <div id="status-live"></div>
+      </div>
+
+      <div class="live-workspace hidden" id="live-workspace">
+        <div class="effects" id="live-effects">
+          <div class="fx-header">
+            <span class="fx-title" data-i18n="fx.header">滤镜</span>
+            <div class="fx-mode">
+              <button class="fx-mode-btn" data-mode="auto" id="fx-mode-auto" data-i18n="fx.mode.auto">全能</button>
+              <button class="fx-mode-btn active" data-mode="single" id="fx-mode-single" data-i18n="fx.mode.single">单选</button>
+              <button class="fx-mode-btn" data-mode="dual" id="fx-mode-dual" data-i18n="fx.mode.dual">双选</button>
+              <button class="fx-mode-btn" data-mode="five" id="fx-mode-five" data-i18n="fx.mode.five">四指</button>
+            </div>
+            <button class="fx-close" id="btn-fx-close" aria-label="关闭">✕</button>
+          </div>
+          <div class="fx-slots hidden" id="fx-slots">
+            <button class="fx-slot active" data-slot="A" id="fx-slot-a"><span class="fx-slot-emoji" id="fx-slot-a-emoji">👾</span><span data-i18n="fx.slotA">A</span></button>
+            <button class="fx-slot" data-slot="B" id="fx-slot-b"><span class="fx-slot-emoji" id="fx-slot-b-emoji">🌌</span><span data-i18n="fx.slotB">B</span></button>
+            <button class="fx-slot" data-slot="C" id="fx-slot-c"><span class="fx-slot-emoji" id="fx-slot-c-emoji">🎨</span><span data-i18n="fx.slotC">C</span></button>
+            <button class="fx-slot" data-slot="D" id="fx-slot-d"><span class="fx-slot-emoji" id="fx-slot-d-emoji">🌸</span><span data-i18n="fx.slotD">D</span></button>
+            <button class="fx-slot" data-slot="E" id="fx-slot-e"><span class="fx-slot-emoji" id="fx-slot-e-emoji">💚</span><span data-i18n="fx.slotE">E</span></button>
+          </div>
+          <div class="fx-list">
+            <button class="effect-chip active" data-effect="invert"><span class="fx-emoji">🎞️</span><span data-i18n="fx.invert">负片</span></button>
+            <button class="effect-chip" data-effect="red"><span class="fx-emoji">❤️</span><span data-i18n="fx.red">红</span></button>
+            <button class="effect-chip" data-effect="blue"><span class="fx-emoji">💙</span><span data-i18n="fx.blue">蓝</span></button>
+            <button class="effect-chip" data-effect="cyan"><span class="fx-emoji">💠</span><span data-i18n="fx.cyan">青</span></button>
+            <button class="effect-chip" data-effect="pink"><span class="fx-emoji">🌸</span><span data-i18n="fx.pink">粉</span></button>
+            <button class="effect-chip" data-effect="green"><span class="fx-emoji">💚</span><span data-i18n="fx.green">绿</span></button>
+            <button class="effect-chip" data-effect="yellow"><span class="fx-emoji">💛</span><span data-i18n="fx.yellow">黄</span></button>
+            <button class="effect-chip" data-effect="pixelate"><span class="fx-emoji">🧩</span><span data-i18n="fx.pixelate">马赛克</span></button>
+            <button class="effect-chip" data-effect="none"><span class="fx-emoji">🚫</span><span data-i18n="fx.none">空白</span></button>
+            <button class="effect-chip" data-effect="glitch"><span class="fx-emoji">📺</span><span data-i18n="fx.glitch">故障</span></button>
+            <button class="effect-chip" data-effect="impression"><span class="fx-emoji">🎨</span><span data-i18n="fx.impression">印象派</span></button>
+            <button class="effect-chip" data-effect="vaporwave"><span class="fx-emoji">🌴</span><span data-i18n="fx.vaporwave">蒸汽波</span></button>
+            <button class="effect-chip" data-effect="aurora"><span class="fx-emoji">🌌</span><span data-i18n="fx.aurora">极光</span></button>
+            <button class="effect-chip" data-effect="matrix"><span class="fx-emoji">👾</span><span data-i18n="fx.matrix">矩阵</span></button>
+            <button class="effect-chip" data-effect="gold"><span class="fx-emoji">🥇</span><span data-i18n="fx.gold">金箔</span></button>
+            <button class="effect-chip" data-effect="rgb"><span class="fx-emoji">👻</span><span data-i18n="fx.rgb">RGB残影</span></button>
+            <button class="effect-chip" data-effect="greenscreen"><span class="fx-emoji">🟩</span><span data-i18n="fx.greenscreen">绿幕</span></button>
+          </div>
+        </div>
+        <button class="fx-toggle" id="btn-fx-toggle" aria-label="滤镜" aria-expanded="false">🎨</button>
+        <div class="live-canvas-slot">
+          <div class="canvas-wrap" id="live-canvas-wrap">
+            <div class="model-badge" id="model-badge" data-state="loading">
+              <span class="mb-dot"></span>
+              <span class="mb-text" id="mb-text">手部追踪模型加载中…</span>
+            </div>
+            <button class="mirror-btn active" id="btn-mirror" title="切换摄像头镜像" aria-label="切换摄像头镜像" data-i18n-title="mirror.title">🔄</button>
+            <button class="sticker-btn" id="btn-sticker" title="贴图头像" aria-label="贴图头像" data-i18n-title="sticker.title">🙈</button>
+            <button class="points-btn" id="btn-hand-points" title="显示手部检测点" aria-label="显示手部检测点" data-i18n-title="points.title">🖐</button>
+            <div class="sticker-panel hidden" id="sticker-panel">
+              <div class="sticker-row">
+                <span data-i18n="sticker.size">大小</span>
+                <input type="range" id="sticker-size" min="0.6" max="1.6" step="0.05" value="1" />
+              </div>
+              <div class="sticker-row">
+                <span data-i18n="sticker.vert">上下</span>
+                <input type="range" id="sticker-yoff" min="-0.9" max="0.9" step="0.05" value="-0.45" />
+              </div>
+              <div class="sticker-row">
+                <label class="sticker-file-btn" for="sticker-file" data-i18n="sticker.replace">换图</label>
+                <input type="file" id="sticker-file" accept="image/*" hidden />
+              </div>
+            </div>
+            <button class="fs-btn" id="btn-fullscreen" title="全屏" aria-label="全屏" data-i18n-title="fs.title">⛶</button>
+            <div class="rec-btns">
+              <button class="record-btn" id="btn-record" title="录制" aria-label="录制" data-i18n="record.idle">⏺ 录制</button>
+              <button class="record-btn" id="btn-record10" title="录制 10 秒" aria-label="录制 10 秒" data-i18n="record.idle10">⏺ 录10秒</button>
+            </div>
+            <canvas id="canvas-live"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 合成模式（双上传） ============ -->
+  <div id="mode-ai" class="hidden">
+    <div class="comp-cards">
+      <label id="drop">
+        <span class="corner tl"></span><span class="corner tr"></span>
+        <span class="corner bl"></span><span class="corner br"></span>
+        <input id="file" type="file" accept="video/*" />
+        <span class="ok-badge" aria-hidden="true">✓</span>
+        <div class="film">🎬</div>
+        <div class="big" data-i18n="comp.drop1.title"><span style="opacity:.6">第 1 步 ·</span> 上传原视频</div>
+        <div class="small" data-i18n="comp.drop1.hint">用「录制」模式录的、带双手比框动作的视频（建议 &lt;15MB）。</div>
+      </label>
+
+      <label id="drop-sty">
+        <span class="corner tl"></span><span class="corner tr"></span>
+        <span class="corner bl"></span><span class="corner br"></span>
+        <input id="file-sty" type="file" accept="video/*" />
+        <span class="ok-badge" aria-hidden="true">✓</span>
+        <div class="film">✨</div>
+        <div class="big" data-i18n="comp.drop2.title"><span style="opacity:.6">第 2 步 ·</span> 上传 AI 风格化视频</div>
+        <div class="small">
+          <div class="prompt-switch">
+            <button type="button" class="prompt-tab active" data-ver="basic" data-i18n="comp.drop2.tab.basic">简单版</button>
+            <button type="button" class="prompt-tab" data-ver="pro" data-i18n="comp.drop2.tab.pro">进阶版</button>
+            <button type="button" class="copy-prompt" id="btn-copy-prompt" data-i18n="comp.drop2.copy">📋 复制</button>
+          </div>
+          <div class="prompt-pane active" data-ver="basic">
+            <b class="prompt-label" data-i18n="comp.drop2.promptLabel">提示词：</b>
+            <span class="prompt-excerpt" data-i18n="comp.drop2.prompt.basic">这是对源视频的严格像素级对齐编辑：保持完全相同的姿势、动作、节奏、服装颜色和背景。镜头绝不能变——不要缩放、不要裁切、不要重新取景，也不要改变视野。人物面部和身体必须始终处在与源视频完全相同的位置和大小：每一帧里，眼睛、鼻子、嘴巴都必须保持在相同的屏幕坐标上。逐帧精确匹配面部表情：每一刻都保持嘴巴张开的精确程度——如果嘴巴是微张且静止的，就保持微张且静止；不要闭上它，也不要添加源视频里没有的说话动作或任何嘴部运动。在源视频相同的时刻，复现眨眼、视线方向和眉毛位置。只改变视觉风格，几何构图和表演一概不变。风格：动漫 = 干净线稿 + 赛璐璐平涂 + 鲜艳色彩</span>
+          </div>
+          <div class="prompt-pane" data-ver="pro">
+            <div class="prompt-line"><b class="prompt-label" data-i18n="comp.drop2.workflowLabel">工作流：</b><span data-i18n="comp.drop2.workflow">先找一张人物图，或用 AI 生成一张人物图，然后再用 AI 进行风格化</span></div>
+            <div class="prompt-line"><b class="prompt-label" data-i18n="comp.drop2.promptLabel">提示词：</b><span class="prompt-excerpt" data-i18n="comp.drop2.prompt.pro">将参考图片中的人物替换到视频中，背景也根据图片进行补充，并保持人物动作、节奏与原视频完全一致；镜头不缩放、不裁切、不重新取景，人物面部位置、尺寸和表情逐帧对齐。只替换人物和补全背景，几何构图和表演一概不变。</span></div>
+          </div>
+        </div>
+      </label>
+    </div>
+
+    <div class="comp-note" data-i18n="comp.note.single">💡 不想剪辑的话，推荐用「单选」模式录制。</div>
+
+    <div id="stage" class="hidden">
+      <video id="orig" playsinline muted></video>
+      <video id="sty" playsinline muted crossorigin="anonymous"></video>
+      <div class="canvas-wrap"><canvas id="canvas"></canvas></div>
+      <div id="controls">
+        <button class="btn ink" id="btn-play" disabled data-i18n="ai.play">▶ 预览</button>
+        <button class="btn primary" id="btn-export" disabled data-i18n="ai.export">⬇ 导出</button>
+      </div>
+      <div id="status"></div>
+    </div>
+  </div>
+
+  <footer>
+    <span data-i18n="footer.slogan">🎥 抖音爆火手指交互制作工具 · 全程浏览器本地运行 · 隐私无忧</span><br />
+    <span data-i18n="footer.brand">Finger Play · 捏个框 — finger-play.gokuscraper.com</span>
+  </footer>
+
+  <!-- ============ 反馈 / 联系作者 弹窗 ============ -->
+  <div class="modal-overlay hidden" id="contact-modal" role="dialog" aria-modal="true" aria-labelledby="contact-modal-title">
+    <div class="modal">
+      <button type="button" class="modal-close" id="btn-contact-close" aria-label="关闭" title="关闭" data-i18n-title="contact.close">✕</button>
+      <h2 id="contact-modal-title" data-i18n="contact.modal.title">反馈 / 建议 / 联系作者</h2>
+      <img class="modal-qr" src="assets/contact/gzh.jpg" alt="微信公众号二维码" data-i18n-alt="contact.qr.alt" />
+      <a class="modal-github" id="contact-github" href="https://github.com/" target="_blank" rel="noopener" data-i18n="contact.github">⭐ GitHub</a>
+    </div>
+  </div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,28 @@
+{
+  "name": "finger-play",
+  "version": "1.0.0",
+  "description": "**Try it: https://sophiamyang.github.io/finger-frame-effect-ai/**",
+  "main": "app.js",
+  "directories": {
+    "example": "examples"
+  },
+  "scripts": {
+    "test": "playwright test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sophiamyang/finger-frame-effect-ai.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/sophiamyang/finger-frame-effect-ai/issues"
+  },
+  "homepage": "https://github.com/sophiamyang/finger-frame-effect-ai#readme",
+  "devDependencies": {
+    "@playwright/test": "^1.62.1",
+    "playwright": "^1.62.1"
+  }
+}
