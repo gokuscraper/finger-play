@@ -26,16 +26,16 @@ Finger Play is a pure-frontend finger-interaction video tool. Open your camera, 
 - **Composite mode with AI restyling** — upload the original clip and an AI-restyled clip, and the AI world shows through your finger frame
 - **Mobile friendly** — PWA installable, portrait fullscreen auto-rotates to fill the screen, drawer-style filter panel on phones
 
-## Comparison: By hand vs CapCut vs Finger Play
+## Comparison: Manual CapCut vs Finger Play
 
-| Aspect | By hand (frame-by-frame) | CapCut / commercial tools | Finger Play |
-|--------|:---:|:---:|:---:|
-| Time to make the "finger frame" effect | Cutouts + keyframes per frame, hours | Effect-by-effect stitching, many steps | Camera on, hands frame it, done |
-| Live preview | ❌ only after compositing | ⚠️ asset editing, no live tracking | ✅ filters apply live in-frame |
-| Avatar / hide face | Manual cutout | Some templates | ✅ one-click avatar sticker |
-| Local privacy | ✅ | ❌ footage uploaded to cloud | ✅ all local, no upload |
-| Price | Time cost | Membership / watermark | Free and open source |
-| Learning curve | High | Medium | Low (open camera) |
+| Aspect | Manual with CapCut / commercial tools | Finger Play |
+|--------|:---:|:---:|
+| Time to make the "finger frame" effect | Cutouts + keyframes per frame, hours | Camera on, hands frame it, done |
+| Live preview | ⚠️ asset editing, no live tracking | ✅ filters apply live in-frame |
+| Avatar / hide face | Manual cutout | ✅ one-click avatar sticker |
+| Local privacy | ❌ footage uploaded to cloud | ✅ all local, no upload |
+| Price | Membership / watermark | Free and open source |
+| Learning curve | Medium-high | Low (open camera) |
 
 ## Quick start
 
