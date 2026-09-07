@@ -2020,6 +2020,30 @@ function composeFrameSource() {
   return swapped ? { frame: orig, isSwapped: true } : { frame: sty, isSwapped: false };
 }
 
+const SWAP_DURATION = 0.9; // 光圈扩散时长（秒）
+// 光圈扩散进度：中点前 0，中点后按 easeOutCubic 缓动到 1。
+function irisRevealProgress(t, mid, dur) {
+  if (!isFinite(mid) || mid <= 0 || dur <= 0) return 0;
+  if (t <= mid) return 0;
+  const local = (t - mid) / dur;
+  if (local >= 1) return 1;
+  return 1 - Math.pow(1 - local, 3);
+}
+// 手指框 4 角质心（光圈起始圆心）。
+function quadCentroid(q) {
+  if (!q || q.length < 3) return null;
+  let x = 0, y = 0;
+  for (const p of q) { x += p.x; y += p.y; }
+  return { x: x / q.length, y: y / q.length };
+}
+// 从 (cx,cy) 到 4 个屏幕角的最远距离 —— 光圈扩散满屏所需的最大半径。
+function revealFullRadius(cx, cy, w, h) {
+  return Math.max(
+    Math.hypot(cx, cy), Math.hypot(cx - w, cy),
+    Math.hypot(cx, cy - h), Math.hypot(cx - w, cy - h)
+  );
+}
+
 let lastVideoTime = -1;
 function loop() {
   if (!orig.paused && !orig.ended) requestAnimationFrame(loop);
@@ -2180,6 +2204,9 @@ window.__fingerPlayTest = {
   dualFrameEffect,
   composeFxPlan,
   composeFrameSource,
+  irisRevealProgress,
+  quadCentroid,
+  revealFullRadius,
   isComposeSwapped,
   setSwapCompose: (on) => { swapCompose = !!on; },
   swapCompose: () => swapCompose,

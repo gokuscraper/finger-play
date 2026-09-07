@@ -744,6 +744,32 @@ test("合成模式：中点后框内换成原视频（swapCompose 纯逻辑 + UI
   expect(await page.evaluate(() => window.__fingerPlayTest.swapCompose())).toBe(true);
 });
 
+test("合成模式：光圈扩散进度/质心/覆盖半径（irisRevealProgress）", async ({ page }) => {
+  await page.goto(BASE);
+  await page.waitForFunction(() => window.__fingerPlayTest && window.__fingerPlayTest.irisRevealProgress);
+  const r = await page.evaluate(() => {
+    const { irisRevealProgress, quadCentroid, revealFullRadius } = window.__fingerPlayTest;
+    return {
+      before: irisRevealProgress(1.9, 2, 1),        // 中点前 → 0
+      atStart: irisRevealProgress(2.0, 2, 1),       // 恰在中点 → 0
+      eased: irisRevealProgress(2.5, 2, 1),         // local=0.5 → easeOutCubic=0.875
+      after: irisRevealProgress(3.1, 2, 1),         // 超过时长 → 1
+      badMid: irisRevealProgress(5, 0, 1),          // duration 无效 → 0
+      centroid: quadCentroid([{x:100,y:100},{x:300,y:100},{x:300,y:300},{x:100,y:300}]),
+      noCentroid: quadCentroid(null),
+      fullR: revealFullRadius(200, 200, 640, 480),
+    };
+  });
+  expect(r.before).toBe(0);
+  expect(r.atStart).toBe(0);
+  expect(r.eased).toBeCloseTo(0.875, 5);
+  expect(r.after).toBe(1);
+  expect(r.badMid).toBe(0);
+  expect(r.centroid).toEqual({ x: 200, y: 200 });
+  expect(r.noCentroid).toBeNull();
+  expect(r.fullR).toBeCloseTo(Math.hypot(640 - 200, 480 - 200), 5);
+});
+
 test("手部检测点：drawHandLandmarks 画出 21 点 + 连线（无摄像头冒烟）", async ({ page }) => {
   await page.goto(BASE);
   await page.waitForFunction(() => window.__fingerPlayTest && window.__fingerPlayTest.drawHandLandmarks);
