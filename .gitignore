@@ -2,10 +2,7 @@
 *.mov
 *.mp4
 *.task
-# …except the checked-in example
-!examples/final.mp4
-!examples/final.gif
-!examples/demo/*.mov
+# …except the checked-in demo
 !examples/demo/*.mp4
 
 # Python
@@ -22,9 +19,11 @@ playwright-report/
 .claude/
 .DS_Store
 *.log
-*.png
 *.webm
 .env
+
+# Internal docs (superpowers planning artifacts — kept local only)
+docs/
 
 # Self-hosted resources that MUST ship with the site (re-include AFTER the
 # broad excludes — gitignore is last-match-wins): hand-tracking model + icons.

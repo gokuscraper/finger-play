@@ -117,6 +117,10 @@ npm test           # 跑 32 个自动化测试（smoke.spec.js）
 
 [GPL v2](LICENSE) — Copyright (C) 2026 Goku Scraper
 
+## 致谢
+
+本项目的开发中参考了以下项目，感谢他们的付出：four-finger-frame、finger-frame-effect、FingerLens、neon-hand-gesture、Air-Draw。
+
 ---
 
 *Keywords: 手指交互, 手指框, 捏个框, 滤镜, MediaPipe, 手部追踪, 贴图头像, 绿幕, 视频录制, 抖音, PWA, 纯前端, finger frame, hand tracking, finger gesture, video filters, avatar sticker, greenscreen, canvas 2d, realtime effects, 人工智能, AI 视频*

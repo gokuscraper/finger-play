@@ -117,6 +117,10 @@ I have two cats, Tangyuan and Jiaozi. If Finger Play brought a bit of joy to you
 
 [GPL v2](LICENSE) — Copyright (C) 2026 Goku Scraper
 
+## Acknowledgments
+
+This project's development referenced the following projects; thank you for their work: four-finger-frame, finger-frame-effect, FingerLens, neon-hand-gesture, Air-Draw.
+
 ---
 
 *Keywords: finger frame, finger gesture, hand tracking, MediaPipe, video filters, avatar sticker, greenscreen, video recording, douyin, tiktok, PWA, pure frontend, canvas 2d, realtime effects, AI video, 手指交互, 手指框, 捏个框, 滤镜, 手部追踪, 贴图头像, 绿幕*
