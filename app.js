@@ -523,7 +523,11 @@ function artRgb(lum, out, w, h, t) {
 
 // 驱动：取 quad 包围盒 → 下采样 → process → 放大画回 c（c 已被 clip 到 quad）。
 function artApply(c, src, q, process) {
-  const w = src.width, h = src.height;
+  // src 可能是 canvas（在线模式）或 video（合成模式）。canvas 用 width/height，
+  // video 必须用 videoWidth/videoHeight —— video.width 是默认的 300×150，
+  // 会导致合成模式框内滤镜被截断成空白。
+  const sz = srcSize(src);
+  const w = sz.w, h = sz.h;
   const bb = q ? quadBBox(q) : { x0: 0, y0: 0, x1: w, y1: h };
   const x0 = Math.max(0, Math.floor(bb.x0)), y0 = Math.max(0, Math.floor(bb.y0));
   const x1 = Math.min(w, Math.ceil(bb.x1)), y1 = Math.min(h, Math.ceil(bb.y1));
