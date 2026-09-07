@@ -1741,6 +1741,8 @@ let haveSty = false;
 let recorder = null;
 let exporting = false;
 let aiLastHands = null; // 合成模式最近一帧的手部 landmarks（供手点加回）
+let aiFiveQuads = null; // 合成模式四指/全能的指缝区（双手张开时非 null，供 renderPillar 用）
+let aiFiveLostFrames = 0;
 
 // ---- 合成界面效果清单：显示录制时选了哪些效果，合成时会加回哪些 ----
 const compFxSummaryEl = document.getElementById("comp-fx-summary");
@@ -1959,6 +1961,41 @@ if (srcParam) {
 // ============================================================================
 // 合成播放
 // ============================================================================
+// 合成模式渲染计划：根据滤镜模式 + 当前手部状态，决定框内滤镜的区域分配。
+// 与 live 模式的渲染分支一一对应（liveLoop），抽成纯函数便于单测 ——
+// 保证合成效果与录制时一致。返回 { type, ... }：
+//   pillar     = 四指/全能的 3 个指缝区（A/B/C），tipsL/tipsR + effects
+//   triangles  = 双手交叉（蝴蝶结）左三角 A / 右三角 B
+//   quad       = 整框单个滤镜
+function composeFxPlan(fxMode, corners, fiveQuads, W) {
+  if (fxMode === "five" || fxMode === "auto") {
+    if (fiveQuads) {
+      return {
+        type: "pillar",
+        tipsL: fiveQuads.tipsL,
+        tipsR: fiveQuads.tipsR,
+        effects: [dualA, dualB, dualC],
+      };
+    }
+    if (fxMode === "auto") {
+      const { crossed, triA, triB } = splitQuad(corners, W);
+      if (crossed && triA && triB) {
+        return { type: "triangles", triA, triB, effectA: dualA, effectB: dualB };
+      }
+    }
+    // 四指：手未完全张开 → 整框 A；全能回落四指框 → 按正反 A/B。
+    return { type: "quad", effect: fxMode === "five" ? dualA : dualFrameEffect(corners) };
+  }
+  if (fxMode === "dual") {
+    const { crossed, triA, triB } = splitQuad(corners, W);
+    if (crossed && triA && triB) {
+      return { type: "triangles", triA, triB, effectA: dualA, effectB: dualB };
+    }
+    return { type: "quad", effect: dualFrameEffect(corners) };
+  }
+  return { type: "quad", effect: currentLiveEffect };
+}
+
 let lastVideoTime = -1;
 function loop() {
   if (!orig.paused && !orig.ended) requestAnimationFrame(loop);
@@ -1974,6 +2011,19 @@ function loop() {
     const res = landmarker.detectForVideo(detCanvas, performance.now());
     aiLastHands = res.landmarks || null;
     updateTracker(aiSt, res.landmarks || [], canvas.width, canvas.height);
+    // 合成模式也要追踪四指/全能的指缝区（与 liveLoop 的 fiveQuads 一致，带丢失保持）
+    const fq = computeFiveFingers(
+      res.landmarks || [],
+      res.handedness || [],
+      canvas.width,
+      canvas.height
+    );
+    if (fq) {
+      aiFiveQuads = fq;
+      aiFiveLostFrames = 0;
+    } else if (aiFiveQuads) {
+      if (++aiFiveLostFrames > FIVE_MAX_LOST) aiFiveQuads = null;
+    }
   }
 
   if (haveSty && Math.abs(sty.currentTime - orig.currentTime) > 0.15) {
@@ -1983,25 +2033,26 @@ function loop() {
   if (aiSt.corners && aiSt.presence > 0.01) {
     // 合成时把录制时选的滤镜「加回」：框内对风格化视频套滤镜（复用在线
     // 模式同一条 LIVE_EFFECTS 管线）。录制下载的是干净源文件，特效在这里重画。
-    const { crossed, triA, triB } = splitQuad(aiSt.corners, canvas.width);
-    const useDualTri = fxMode === "dual" || fxMode === "five";
-    if (useDualTri && crossed && triA && triB) {
-      drawWindow(triA, aiSt.presence, ctx, canvas, (c, cv) =>
-        LIVE_EFFECTS[dualA](c, cv, sty, triA)
+    const plan = composeFxPlan(fxMode, aiSt.corners, aiFiveQuads, canvas.width);
+    if (plan.type === "pillar") {
+      // 四指/全能：双手张开 → 3 个指缝区各套一个滤镜（A/B/C），与录制一致。
+      renderPillar(ctx, canvas, plan.tipsL, plan.tipsR, plan.effects, sty, aiSt.presence);
+    } else if (plan.type === "triangles") {
+      drawWindow(plan.triA, aiSt.presence, ctx, canvas, (c, cv) =>
+        LIVE_EFFECTS[plan.effectA](c, cv, sty, plan.triA)
       );
-      drawWindow(triB, aiSt.presence, ctx, canvas, (c, cv) =>
-        LIVE_EFFECTS[dualB](c, cv, sty, triB)
-      );
-    } else if (useDualTri) {
-      drawWindow(aiSt.corners, aiSt.presence, ctx, canvas, (c, cv) =>
-        LIVE_EFFECTS[dualFrameEffect(aiSt.corners)](c, cv, sty, aiSt.corners)
+      drawWindow(plan.triB, aiSt.presence, ctx, canvas, (c, cv) =>
+        LIVE_EFFECTS[plan.effectB](c, cv, sty, plan.triB)
       );
     } else {
       drawWindow(aiSt.corners, aiSt.presence, ctx, canvas, (c, cv) =>
-        LIVE_EFFECTS[currentLiveEffect](c, cv, sty, aiSt.corners)
+        LIVE_EFFECTS[plan.effect](c, cv, sty, aiSt.corners)
       );
     }
-    drawOutline(aiSt.corners, aiSt.presence, orig.currentTime, ctx);
+    // 四指/全能有指缝区时 renderPillar 已画彩色蚂蚁线，不再画整框线。
+    if (fxMode !== "five" && !(fxMode === "auto" && aiFiveQuads)) {
+      drawOutline(aiSt.corners, aiSt.presence, orig.currentTime, ctx);
+    }
   }
 
   // 合成时把录制时开的手部检测点（🖐 黑骨架）加回
@@ -2100,6 +2151,7 @@ window.__fingerPlayTest = {
   orderQuad,
   signedArea,
   dualFrameEffect,
+  composeFxPlan,
   getDualAB: () => ({ a: dualA, b: dualB }),
   renderPillar,
   computeFiveFingers,

@@ -663,6 +663,54 @@ test("双选：正常框用 A，翻面用 B", async ({ page }) => {
   expect(r.ab.a).not.toBe(r.ab.b);       // A/B 默认不同
 });
 
+test("合成模式：全能(five/auto)跑四指 3 区 A/B/C，双选跑蝴蝶结 A/B", async ({ page }) => {
+  await page.goto(BASE);
+  await page.waitForFunction(() => window.__fingerPlayTest && window.__fingerPlayTest.composeFxPlan);
+
+  const r = await page.evaluate(async () => {
+    const api = window.__fingerPlayTest;
+    const W = 1280, H = 720;
+    const mk = (palmX, palmY, gap, flip) => {
+      const lm = [];
+      for (let i = 0; i < 21; i++) lm.push({ x: 0, y: 0, z: 0 });
+      lm[0] = { x: palmX / W, y: palmY / H, z: 0 };
+      lm[9] = { x: palmX / W, y: (palmY + 60) / H, z: 0 };
+      [4, 8, 12, 16, 20].forEach((idx, i) => {
+        lm[idx] = { x: (palmX + (flip ? -1 : 1) * (i - 2) * gap) / W, y: (palmY - 100) / H, z: 0 };
+      });
+      return lm;
+    };
+    const hd = [[{ score: 0.9 }], [{ score: 0.9 }]];
+    const lms = [mk(400, 500, 80, false), mk(880, 500, 80, true)];
+    const fiveQuads = api.computeFiveFingers(lms, hd, W, H);
+    const corners = [
+      { x: 100, y: 100 }, { x: 1100, y: 100 }, { x: 1100, y: 600 }, { x: 100, y: 600 },
+    ];
+
+    api.setFxMode("five");
+    await new Promise((res) => setTimeout(res, 20));
+    const five = api.composeFxPlan("five", corners, fiveQuads, W);
+    api.setFxMode("auto");
+    await new Promise((res) => setTimeout(res, 20));
+    const auto = api.composeFxPlan("auto", corners, fiveQuads, W);
+    const autoFallback = api.composeFxPlan("auto", corners, null, W);
+    api.setFxMode("dual");
+    await new Promise((res) => setTimeout(res, 20));
+    const dual = api.composeFxPlan("dual", corners, null, W);
+    return { five, auto, autoFallback, dual };
+  });
+  // 全能/四指：手全开 → 3 个指缝区，分别用 A/B/C（默认极光/蒸汽波/印象派）
+  expect(r.five.type).toBe("pillar");
+  expect(r.five.effects).toEqual(["aurora", "vaporwave", "impression"]);
+  expect(r.auto.type).toBe("pillar");
+  expect(r.auto.effects).toEqual(["aurora", "vaporwave", "impression"]);
+  // 全能手没张开 → 回落单框（按正反 A/B，不是只有极光）
+  expect(r.autoFallback.type).toBe("quad");
+  // 双选：不交叉 → 单框 A/B
+  expect(r.dual.type).toBe("quad");
+  expect(r.dual.effect).toBeDefined();
+});
+
 test("手部检测点：drawHandLandmarks 画出 21 点 + 连线（无摄像头冒烟）", async ({ page }) => {
   await page.goto(BASE);
   await page.waitForFunction(() => window.__fingerPlayTest && window.__fingerPlayTest.drawHandLandmarks);
