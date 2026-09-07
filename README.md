@@ -19,13 +19,15 @@
 
 ## 🎬 演示视频
 
-点封面直接播放（MP4，浏览器内联播放，无需下载）：
+点封面在 Bilibili 观看完整效果：
 
 <p align="center">
-  <a href="examples/demo/demo-0907.mp4">
+  <a href="https://www.bilibili.com/video/BV16JbM6YEWQ/">
     <img src="examples/demo/demo-0907-cover.jpg" alt="捏个框演示视频" width="480">
   </a>
 </p>
+
+> 源文件：[demo-0907.mp4](examples/demo/demo-0907.mp4)
 
 ## 为什么选它？
 

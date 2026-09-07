@@ -19,13 +19,15 @@ Finger Play is a pure-frontend finger-interaction video tool. Open your camera, 
 
 ## 🎬 Demo video
 
-Click the cover to play it inline in the browser (MP4, no download needed):
+Click the cover to watch it on Bilibili:
 
 <p align="center">
-  <a href="examples/demo/demo-0907.mp4">
+  <a href="https://www.bilibili.com/video/BV16JbM6YEWQ/">
     <img src="examples/demo/demo-0907-cover.jpg" alt="Finger Play demo video" width="480">
   </a>
 </p>
+
+> Source file: [demo-0907.mp4](examples/demo/demo-0907.mp4)
 
 ## Why Finger Play?
 
