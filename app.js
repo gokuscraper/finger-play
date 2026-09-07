@@ -141,8 +141,11 @@ sceneCanvas.height = LIVE_CANVAS_H;
 const sceneCtx = sceneCanvas.getContext("2d");
 
 // 录制画布：captureStream 抓的是 canvas 原始像素，不含 CSS 的镜像显示翻转。
-// 为了让录制内容 = 屏幕所见（水印始终在左上角正向、镜像开时画面也镜像），
-// 录制期间每帧把 liveCanvas 同步到这里（镜像开则水平翻转）。
+// 录制的「原视频」= 摄像头原始画面（双手比框 + 背景）+ 贴图头像（不露脸），
+// 但**不带**滤镜/框线/手部检测点/水印。这样它适合喂给 AI 风格化（不被滤镜遮挡、
+// 头像随画面一起被重绘、不露真脸），合成时二次检测手也不会被烧进像素的黑色
+// 骨架干扰。屏幕实时预览仍是 liveCanvas 的完整特效画面（所见即所得），只有
+// 下载的视频走这里的「干净源帧 + 头像」。
 const recCanvas = document.createElement("canvas");
 recCanvas.width = LIVE_CANVAS_W;
 recCanvas.height = LIVE_CANVAS_H;
@@ -154,10 +157,12 @@ function syncRecCanvas() {
     recCtx.save();
     recCtx.scale(-1, 1);
     recCtx.translate(-LIVE_CANVAS_W, 0);
-    recCtx.drawImage(liveCanvas, 0, 0);
+    drawCover(recCtx, liveVideo, LIVE_CANVAS_W, LIVE_CANVAS_H);
+    if (sticker && sticker.enabled) sticker.drawTo(recCtx);
     recCtx.restore();
   } else {
-    recCtx.drawImage(liveCanvas, 0, 0);
+    drawCover(recCtx, liveVideo, LIVE_CANVAS_W, LIVE_CANVAS_H);
+    if (sticker && sticker.enabled) sticker.drawTo(recCtx);
   }
 }
 
@@ -1731,6 +1736,71 @@ let haveOrig = false;
 let haveSty = false;
 let recorder = null;
 let exporting = false;
+let aiLastHands = null; // 合成模式最近一帧的手部 landmarks（供手点加回）
+
+// ---- 合成界面效果清单：显示录制时选了哪些效果，合成时会加回哪些 ----
+const compFxSummaryEl = document.getElementById("comp-fx-summary");
+const compFxChipsEl = document.getElementById("comp-fx-chips");
+
+const FX_MODE_NAMES = { single: "fx.mode.single", dual: "fx.mode.dual", five: "fx.mode.five", auto: "fx.mode.auto" };
+
+function renderFxSummary() {
+  if (!compFxChipsEl) return;
+  const chips = [];
+  // 滤镜模式 + 当前滤镜
+  const modeName = t(FX_MODE_NAMES[fxMode] || "fx.mode.single");
+  if (fxMode === "dual" || fxMode === "five" || fxMode === "auto") {
+    const effs = [];
+    if (fxMode === "dual") {
+      effs.push(`${FX_EMOJI[dualA] || ""} ${t("fx.slotA")}·${t("fx." + dualA)}`);
+      effs.push(`${FX_EMOJI[dualB] || ""} ${t("fx.slotB")}·${t("fx." + dualB)}`);
+    } else {
+      effs.push(`${FX_EMOJI[dualA] || ""} ${t("fx.slotA")}·${t("fx." + dualA)}`);
+      effs.push(`${FX_EMOJI[dualB] || ""} ${t("fx.slotB")}·${t("fx." + dualB)}`);
+      effs.push(`${FX_EMOJI[dualC] || ""} ${t("fx.slotC")}·${t("fx." + dualC)}`);
+    }
+    chips.push({ text: `${modeName}（${effs.join(" / ")}）`, on: true });
+  } else {
+    chips.push({
+      text: `${modeName}：${FX_EMOJI[currentLiveEffect] || ""} ${t("fx." + currentLiveEffect)}`,
+      on: true,
+    });
+  }
+  // 贴图头像
+  chips.push({ text: `🙈 ${t("sticker.title")}`, on: !!(sticker && sticker.enabled) });
+  // 手部检测点
+  chips.push({ text: `🖐 ${t("points.title")}`, on: showHandPoints });
+
+  compFxChipsEl.innerHTML = "";
+  const hasAny = chips.some((c) => c.on);
+  if (!hasAny) {
+    const chip = document.createElement("span");
+    chip.className = "cfs-chip empty";
+    chip.textContent = t("comp.summary.empty");
+    compFxChipsEl.appendChild(chip);
+    return;
+  }
+  for (const c of chips) {
+    if (!c.on) continue;
+    const chip = document.createElement("span");
+    chip.className = "cfs-chip";
+    const dot = document.createElement("span");
+    dot.className = "cfs-dot";
+    dot.style.background = "var(--mint)";
+    chip.appendChild(dot);
+    const txt = document.createElement("span");
+    txt.textContent = c.text;
+    chip.appendChild(txt);
+    compFxChipsEl.appendChild(chip);
+  }
+}
+
+// 切到合成模式或状态变化时刷新清单
+renderFxSummary();
+const _origRenderFx = renderFxSummary;
+setInterval(() => {
+  if (!document.getElementById("mode-ai").classList.contains("hidden")) _origRenderFx();
+}, 800);
 
 // ---- 原视频上传（第 1 卡） ----
 document.getElementById("file").addEventListener("change", (e) => {
@@ -1893,7 +1963,12 @@ function loop() {
 
   if (landmarker && orig.currentTime !== lastVideoTime) {
     lastVideoTime = orig.currentTime;
-    const res = landmarker.detectForVideo(orig, performance.now());
+    // 在线模式验证过：MediaPipe 从隐藏的 <video> 元素直接抓帧会拿不到画面
+    // （video{display:none}），必须先把当前帧画到检测画布再 detect —— 与
+    // liveLoop 的 drawCover(detCtx, liveVideo, DET_W, DET_H) 一致。
+    drawCover(detCtx, orig, DET_W, DET_H);
+    const res = landmarker.detectForVideo(detCanvas, performance.now());
+    aiLastHands = res.landmarks || null;
     updateTracker(aiSt, res.landmarks || [], canvas.width, canvas.height);
   }
 
@@ -1902,10 +1977,32 @@ function loop() {
   }
 
   if (aiSt.corners && aiSt.presence > 0.01) {
-    drawWindow(aiSt.corners, aiSt.presence, ctx, canvas, (c, cv) => {
-      c.drawImage(sty, 0, 0, cv.width, cv.height);
-    });
+    // 合成时把录制时选的滤镜「加回」：框内对风格化视频套滤镜（复用在线
+    // 模式同一条 LIVE_EFFECTS 管线）。录制下载的是干净源文件，特效在这里重画。
+    const { crossed, triA, triB } = splitQuad(aiSt.corners, canvas.width);
+    const useDualTri = fxMode === "dual" || fxMode === "five";
+    if (useDualTri && crossed && triA && triB) {
+      drawWindow(triA, aiSt.presence, ctx, canvas, (c, cv) =>
+        LIVE_EFFECTS[dualA](c, cv, sty, triA)
+      );
+      drawWindow(triB, aiSt.presence, ctx, canvas, (c, cv) =>
+        LIVE_EFFECTS[dualB](c, cv, sty, triB)
+      );
+    } else if (useDualTri) {
+      drawWindow(aiSt.corners, aiSt.presence, ctx, canvas, (c, cv) =>
+        LIVE_EFFECTS[dualFrameEffect(aiSt.corners)](c, cv, sty, aiSt.corners)
+      );
+    } else {
+      drawWindow(aiSt.corners, aiSt.presence, ctx, canvas, (c, cv) =>
+        LIVE_EFFECTS[currentLiveEffect](c, cv, sty, aiSt.corners)
+      );
+    }
     drawOutline(aiSt.corners, aiSt.presence, orig.currentTime, ctx);
+  }
+
+  // 合成时把录制时开的手部检测点（🖐 黑骨架）加回
+  if (showHandPoints && aiLastHands && aiLastHands.length) {
+    drawHandLandmarks(ctx, aiLastHands, canvas.width, canvas.height);
   }
 }
 
@@ -1976,6 +2073,9 @@ btnExport.addEventListener("click", async () => {
 window.__fingerPlayTest = {
   updateTrackerLive,
   createTrackerState,
+  aiSt,
+  updateTracker,
+  landmarker: () => landmarker,
   polygonArea,
   toPixel,
   LIVE_EFFECTS,
@@ -1989,6 +2089,8 @@ window.__fingerPlayTest = {
   drawHandLandmarks,
   handPoints: () => showHandPoints,
   setHandPoints: (on) => { showHandPoints = !!on; if (btnHandPoints) btnHandPoints.classList.toggle("active", showHandPoints); },
+  setFxMode: (m) => { if (["single", "dual", "five", "auto"].includes(m)) fxMode = m; },
+  renderFxSummary,
   segIntersect,
   splitQuad,
   orderQuad,

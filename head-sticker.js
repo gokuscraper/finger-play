@@ -76,8 +76,15 @@ export async function createHeadSticker({
         }
       }
     },
+    // 录制画布需要带头像但又不想要滤镜/骨架时用：把当前头像画到任意 ctx。
+    // face 追踪结果复用 tick() 的 lastRect（不重复追踪），无脸时留空不画。
+    drawTo(ctx) {
+      if (!enabled) return;
+      if (lastRect) drawSticker(ctx, stickerImg, lastRect, scale, yOff);
+    },
     // 测试钩子：无摄像头时也能把贴图画到画布指定位置。
     drawTest(rect, roll = 0) {
+      lastRect = rect;
       drawSticker(liveCtx, stickerImg, rect, scale, yOff);
       return true;
     },

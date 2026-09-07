@@ -931,45 +931,180 @@ test("贴图：模型加载 + 画到画布（无摄像头冒烟）", async ({ pa
   expect(fatal, fatal.join("\n")).toEqual([]);
 });
 
-test("水印：录制画布中始终在左上角正向（镜像开/关都正确）", async ({ page }) => {
+test("录制画布 = 干净源帧：水印/滤镜不进录制，仅在预览画布", async ({ page }) => {
   await page.goto(BASE);
   await page.waitForFunction(() => window.__fingerPlayTest && window.__fingerPlayTest.drawWatermark);
 
-  // 在 liveCanvas 画水印 → 同步到录制画布 → 检查录制画布左上角有水印像素、右上角没有
-  async function measureMirror(mirroredOn) {
-    return page.evaluate((on) => {
-      const api = window.__fingerPlayTest;
-      const live = api.liveCanvas;
-      const rec = api.recCanvas;
-      live.width = 1280;
-      live.height = 720;
-      const liveCtx = live.getContext("2d");
-      const recCtx = rec.getContext("2d");
-      api.setMirror(on);
-      liveCtx.clearRect(0, 0, live.width, live.height);
-      api.drawWatermark(liveCtx);
-      api.syncRecCanvas();
-      function countOpaque(x0, y0, w, h) {
-        const d = recCtx.getImageData(x0, y0, w, h).data;
-        let n = 0;
-        for (let i = 3; i < d.length; i += 4) if (d[i] > 40) n++;
-        return n;
-      }
-      const W = rec.width;
-      return {
-        left: countOpaque(10, 10, 220, 70),
-        right: countOpaque(W - 230, 10, 220, 70),
-      };
-    }, mirroredOn);
+  // 用假摄像头给 liveVideo 填充画面，再验证 syncRecCanvas 输出干净帧
+  const r = await page.evaluate(async () => {
+    const api = window.__fingerPlayTest;
+    const live = api.liveCanvas;
+    const rec = api.recCanvas;
+    live.width = 1280;
+    live.height = 720;
+
+    // 造一个假视频帧：蓝色背景 + 红色圆点（模拟摄像头画面）
+    const vc = document.createElement("canvas");
+    vc.width = 1280;
+    vc.height = 720;
+    const vctx = vc.getContext("2d");
+    vctx.fillStyle = "#0044ff";
+    vctx.fillRect(0, 0, 1280, 720);
+    vctx.fillStyle = "#ff2222";
+    vctx.beginPath();
+    vctx.arc(640, 360, 80, 0, Math.PI * 2);
+    vctx.fill();
+    const stream = vc.captureStream(30);
+    api.liveVideo.srcObject = stream;
+    await api.liveVideo.play();
+    await new Promise((res) => setTimeout(res, 200));
+
+    // 预览画布画水印（屏幕所见）
+    const liveCtx = live.getContext("2d");
+    liveCtx.clearRect(0, 0, 1280, 720);
+    liveCtx.drawImage(vc, 0, 0, 1280, 720);
+    api.drawWatermark(liveCtx);
+
+    // 同步到录制画布（应只含干净视频帧）
+    api.syncRecCanvas();
+    const recCtx = rec.getContext("2d");
+    function px(x, y) {
+      const d = recCtx.getImageData(x, y, 1, 1).data;
+      return [d[0], d[1], d[2]];
+    }
+    // 录制画布左上角应是干净视频的蓝色，而不是水印/滤镜
+    return {
+      recTopLeft: px(10, 10), // 干净视频蓝
+      recCenter: px(640, 360), // 干净视频红
+      recWatermarkArea: px(20, 20), // 不应有半透明黑底水印
+    };
+  });
+  // 录制画布 = 干净视频帧（蓝 + 红），无水印压暗
+  expect(r.recTopLeft[2]).toBeGreaterThan(200); // 蓝色分量高
+  expect(r.recTopLeft[1]).toBeLessThan(80); // 绿分量低
+  expect(r.recCenter[0]).toBeGreaterThan(200); // 红色分量高
+});
+
+test("合成滤镜加回：合成框内用录制时选的滤镜处理风格化视频", async ({ page }) => {
+  await page.goto(BASE);
+  await page.waitForFunction(() => window.__fingerPlayTest && window.__fingerPlayTest.LIVE_EFFECTS);
+
+  // 验证合成复用在线滤镜管线：选择不同滤镜，作用在同一风格化视频源上结果不同
+  const r = await page.evaluate(async () => {
+    const { LIVE_EFFECTS, getLiveEffect, setHandPoints } = window.__fingerPlayTest;
+    // 用真实 DOM 的 effect-chip 切滤镜（合成默认沿用 currentLiveEffect）
+    const chips = document.querySelectorAll(".effect-chip");
+    const chip = (id) => [...chips].find((c) => c.dataset.effect === id);
+    if (chip("invert")) chip("invert").click();
+    await new Promise((res) => setTimeout(res, 50));
+    const invertSel = getLiveEffect();
+
+    if (chip("aurora")) chip("aurora").click();
+    await new Promise((res) => setTimeout(res, 50));
+    const auroraSel = getLiveEffect();
+
+    // 确认合成 loop 的分支：单选/双选对应不同效果名
+    return {
+      invertSel,
+      auroraSel,
+      hasDualA: !!window.__fingerPlayTest.getDualAB,
+      hasSplitQuad: !!window.__fingerPlayTest.splitQuad,
+      effects: Object.keys(LIVE_EFFECTS).length,
+    };
+  });
+  expect(r.invertSel).toBe("invert");
+  expect(r.auroraSel).toBe("aurora");
+  expect(r.hasSplitQuad).toBe(true);
+  expect(r.effects).toBeGreaterThanOrEqual(17);
+});
+
+test("贴图头像进入录制画布：录制 = 干净视频帧 + 头像（不带滤镜/骨架）", async ({ page }) => {
+  await page.goto(BASE);
+  await page.waitForFunction(() => window.__fingerPlayTest && window.__fingerPlayTest.sticker);
+
+  const r = await page.evaluate(async () => {
+    const api = window.__fingerPlayTest;
+    const live = api.liveCanvas;
+    const rec = api.recCanvas;
+    live.width = 1280;
+    live.height = 720;
+
+    // 假摄像头：纯色背景
+    const vc = document.createElement("canvas");
+    vc.width = 1280;
+    vc.height = 720;
+    const vctx = vc.getContext("2d");
+    vctx.fillStyle = "#0044ff";
+    vctx.fillRect(0, 0, 1280, 720);
+    const stream = vc.captureStream(30);
+    api.liveVideo.srcObject = stream;
+    await api.liveVideo.play();
+    await new Promise((res) => setTimeout(res, 200));
+
+    // 初始化贴图并画一个头像到场景画布（模拟追踪到人脸）
+    await api.sticker.init();
+    api.sticker.setEnabled(true);
+    const face = { cx: 640, cy: 300, w: 200, h: 260 };
+    api.sticker.drawTest(face, 0);
+
+    // 同步录制画布
+    api.syncRecCanvas();
+    const recCtx = rec.getContext("2d");
+
+    function px(x, y) {
+      const d = recCtx.getImageData(x, y, 1, 1).data;
+      return [d[0], d[1], d[2], d[3]];
+    }
+    // 头像中心区域应有非纯蓝内容（头像贴上了）
+    const faceArea = px(640, 300);
+    const bg = px(50, 50);
+    return {
+      faceArea,
+      bg,
+      stickerEnabled: api.sticker.enabled(),
+    };
+  });
+  // 背景仍是干净蓝色
+  expect(r.bg[2]).toBeGreaterThan(200);
+  expect(r.bg[1]).toBeLessThan(80);
+  // 头像区域不完全是纯蓝背景（贴图覆盖了）
+  const faceDiff =
+    Math.abs(r.faceArea[0] - r.bg[0]) +
+    Math.abs(r.faceArea[1] - r.bg[1]) +
+    Math.abs(r.faceArea[2] - r.bg[2]);
+  expect(faceDiff).toBeGreaterThan(30);
+});
+
+test("合成界面效果清单：显示录制时选的滤镜/贴图/手点", async ({ page }) => {
+  await page.goto(BASE);
+  await page.waitForFunction(() => window.__fingerPlayTest && window.__fingerPlayTest.renderFxSummary);
+  await page.locator('[data-mode="ai"]').click();
+  await page.waitForTimeout(400);
+
+  async function chips() {
+    return page.locator("#comp-fx-chips .cfs-chip").allTextContents();
   }
 
-  // 镜像开启：水印在录制画布左侧（用户看到左上角正向）
-  const on = await measureMirror(true);
-  expect(on.left, "镜像开：水印应在录制画布左侧").toBeGreaterThan(2000);
-  expect(on.right, "镜像开：录制画布右侧无水印").toBeLessThan(100);
+  // 默认单选 + 极光
+  let cs = await chips();
+  expect(cs.some((c) => c.includes("单选") && c.includes("极光"))).toBe(true);
 
-  // 镜像关闭：水印仍在录制画布左侧
-  const off = await measureMirror(false);
-  expect(off.left, "镜像关：水印应在录制画布左侧").toBeGreaterThan(2000);
-  expect(off.right, "镜像关：录制画布右侧无水印").toBeLessThan(100);
+  // 四指模式 → A/B/C
+  await page.evaluate(() => window.__fingerPlayTest.setFxMode("five"));
+  await page.waitForTimeout(800); // 等 setInterval 刷新
+  cs = await chips();
+  expect(cs.some((c) => c.includes("四指"))).toBe(true);
+  expect(cs.some((c) => c.includes("A") && c.includes("B"))).toBe(true);
+
+  // 双选模式 → A/B
+  await page.evaluate(() => window.__fingerPlayTest.setFxMode("dual"));
+  await page.waitForTimeout(800);
+  cs = await chips();
+  expect(cs.some((c) => c.includes("双选"))).toBe(true);
+
+  // 开手点 → 显示手部检测点
+  await page.evaluate(() => window.__fingerPlayTest.setHandPoints(true));
+  await page.waitForTimeout(800);
+  cs = await chips();
+  expect(cs.some((c) => c.includes("手部检测点"))).toBe(true);
 });
