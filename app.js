@@ -1743,6 +1743,7 @@ let exporting = false;
 let aiLastHands = null; // 合成模式最近一帧的手部 landmarks（供手点加回）
 let aiFiveQuads = null; // 合成模式四指/全能的指缝区（双手张开时非 null，供 renderPillar 用）
 let aiFiveLostFrames = 0;
+let swapCompose = true; // 合成模式：视频中点后框内换成原视频、框外变成风格化
 
 // ---- 合成界面效果清单：显示录制时选了哪些效果，合成时会加回哪些 ----
 const compFxSummaryEl = document.getElementById("comp-fx-summary");
@@ -1776,6 +1777,8 @@ function renderFxSummary() {
   chips.push({ text: `🙈 ${t("sticker.title")}`, on: !!(sticker && sticker.enabled) });
   // 手部检测点
   chips.push({ text: `🖐 ${t("points.title")}`, on: showHandPoints });
+  // 后半段换位
+  chips.push({ text: t("comp.summary.swap"), on: swapCompose });
 
   compFxChipsEl.innerHTML = "";
   const hasAny = chips.some((c) => c.on);
@@ -1807,6 +1810,15 @@ const _origRenderFx = renderFxSummary;
 setInterval(() => {
   if (!document.getElementById("mode-ai").classList.contains("hidden")) _origRenderFx();
 }, 800);
+
+// 后半段换位开关
+const compSwapEl = document.getElementById("comp-swap");
+if (compSwapEl) {
+  compSwapEl.addEventListener("change", (e) => {
+    swapCompose = e.target.checked;
+    renderFxSummary();
+  });
+}
 
 // ---- 原视频上传（第 1 卡） ----
 document.getElementById("file").addEventListener("change", (e) => {
@@ -1996,11 +2008,26 @@ function composeFxPlan(fxMode, corners, fiveQuads, W) {
   return { type: "quad", effect: currentLiveEffect };
 }
 
+// 合成模式的「框内画面源」：默认前半段是风格化视频、后半段（视频中点后）是原视频。
+// 返回 { frame, isSwapped }——frame 是滤镜作用在框内的源。都在中点一次性切换，
+// 不做逐帧淡入淡出（与手势框的风格保持一致）。
+function isComposeSwapped(swapOn, bothLoaded, duration, t) {
+  if (!swapOn || !bothLoaded || !duration || !isFinite(duration)) return false;
+  return t >= duration / 2;
+}
+function composeFrameSource() {
+  const swapped = isComposeSwapped(swapCompose, haveOrig && haveSty, orig.duration, orig.currentTime);
+  return swapped ? { frame: orig, isSwapped: true } : { frame: sty, isSwapped: false };
+}
+
 let lastVideoTime = -1;
 function loop() {
   if (!orig.paused && !orig.ended) requestAnimationFrame(loop);
 
-  ctx.drawImage(orig, 0, 0, canvas.width, canvas.height);
+  // 前半段：整帧画原视频，框内套风格化；后半段（中点后）：整帧画风格化，框内换回原视频。
+  const { frame, isSwapped } = composeFrameSource();
+  if (isSwapped) ctx.drawImage(sty, 0, 0, canvas.width, canvas.height);
+  else ctx.drawImage(orig, 0, 0, canvas.width, canvas.height);
 
   if (landmarker && orig.currentTime !== lastVideoTime) {
     lastVideoTime = orig.currentTime;
@@ -2036,17 +2063,17 @@ function loop() {
     const plan = composeFxPlan(fxMode, aiSt.corners, aiFiveQuads, canvas.width);
     if (plan.type === "pillar") {
       // 四指/全能：双手张开 → 3 个指缝区各套一个滤镜（A/B/C），与录制一致。
-      renderPillar(ctx, canvas, plan.tipsL, plan.tipsR, plan.effects, sty, aiSt.presence);
+      renderPillar(ctx, canvas, plan.tipsL, plan.tipsR, plan.effects, frame, aiSt.presence);
     } else if (plan.type === "triangles") {
       drawWindow(plan.triA, aiSt.presence, ctx, canvas, (c, cv) =>
-        LIVE_EFFECTS[plan.effectA](c, cv, sty, plan.triA)
+        LIVE_EFFECTS[plan.effectA](c, cv, frame, plan.triA)
       );
       drawWindow(plan.triB, aiSt.presence, ctx, canvas, (c, cv) =>
-        LIVE_EFFECTS[plan.effectB](c, cv, sty, plan.triB)
+        LIVE_EFFECTS[plan.effectB](c, cv, frame, plan.triB)
       );
     } else {
       drawWindow(aiSt.corners, aiSt.presence, ctx, canvas, (c, cv) =>
-        LIVE_EFFECTS[plan.effect](c, cv, sty, aiSt.corners)
+        LIVE_EFFECTS[plan.effect](c, cv, frame, aiSt.corners)
       );
     }
     // 四指/全能有指缝区时 renderPillar 已画彩色蚂蚁线，不再画整框线。
@@ -2152,6 +2179,10 @@ window.__fingerPlayTest = {
   signedArea,
   dualFrameEffect,
   composeFxPlan,
+  composeFrameSource,
+  isComposeSwapped,
+  setSwapCompose: (on) => { swapCompose = !!on; },
+  swapCompose: () => swapCompose,
   getDualAB: () => ({ a: dualA, b: dualB }),
   renderPillar,
   computeFiveFingers,

@@ -740,6 +740,25 @@ canvas.mirrored { transform: scaleX(-1); }
   border-radius: 50%;
   flex: none;
 }
+.comp-swap-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--purple);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+  cursor: pointer;
+  user-select: none;
+}
+.comp-swap-toggle input {
+  accent-color: var(--mint);
+  width: 15px;
+  height: 15px;
+  cursor: pointer;
+}
 
 #drop, #drop-sty {
   position: relative;

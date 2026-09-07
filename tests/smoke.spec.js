@@ -711,6 +711,39 @@ test("合成模式：全能(five/auto)跑四指 3 区 A/B/C，双选跑蝴蝶结
   expect(r.dual.effect).toBeDefined();
 });
 
+test("合成模式：中点后框内换成原视频（swapCompose 纯逻辑 + UI 开关）", async ({ page }) => {
+  await page.goto(BASE);
+  await page.waitForFunction(() => window.__fingerPlayTest && window.__fingerPlayTest.isComposeSwapped);
+
+  // 纯函数：中点切换逻辑（不依赖真实视频）
+  const r = await page.evaluate(() => {
+    const { isComposeSwapped } = window.__fingerPlayTest;
+    return {
+      before: isComposeSwapped(true, true, 4, 1.9), // 中点前 → 不换
+      at: isComposeSwapped(true, true, 4, 2),        // 恰好中点 → 换
+      after: isComposeSwapped(true, true, 4, 3),     // 中点后 → 换
+      off: isComposeSwapped(false, true, 4, 3),      // 开关关 → 不换
+      noDur: isComposeSwapped(true, true, 0, 3),     // duration 无效 → 不换
+      oneLoaded: isComposeSwapped(true, false, 4, 3),// 没齐两段 → 不换
+    };
+  });
+  expect(r.before).toBe(false);
+  expect(r.at).toBe(true);
+  expect(r.after).toBe(true);
+  expect(r.off).toBe(false);
+  expect(r.noDur).toBe(false);
+  expect(r.oneLoaded).toBe(false);
+
+  // UI 开关：默认勾选 → swapCompose=true；取消勾选 → false，切回 → true
+  await page.locator('[data-mode="ai"]').click();
+  await expect(page.locator("#comp-swap")).toBeVisible();
+  expect(await page.evaluate(() => window.__fingerPlayTest.swapCompose())).toBe(true);
+  await page.locator("#comp-swap").uncheck();
+  expect(await page.evaluate(() => window.__fingerPlayTest.swapCompose())).toBe(false);
+  await page.locator("#comp-swap").check();
+  expect(await page.evaluate(() => window.__fingerPlayTest.swapCompose())).toBe(true);
+});
+
 test("手部检测点：drawHandLandmarks 画出 21 点 + 连线（无摄像头冒烟）", async ({ page }) => {
   await page.goto(BASE);
   await page.waitForFunction(() => window.__fingerPlayTest && window.__fingerPlayTest.drawHandLandmarks);
