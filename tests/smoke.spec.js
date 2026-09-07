@@ -802,6 +802,27 @@ test("合成模式：光圈扩散真正按圆遮罩揭示新画面（中心=新�
   expect(r.outside[2]).toBeLessThan(80);
 });
 
+test("合成模式水印：drawWatermark 按画布宽度画在左上角（合成导出可见）", async ({ page }) => {
+  await page.goto(BASE);
+  await page.waitForFunction(() => window.__fingerPlayTest && window.__fingerPlayTest.drawWatermark);
+  const r = await page.evaluate(() => {
+    const { drawWatermark } = window.__fingerPlayTest;
+    const c = document.createElement("canvas");
+    c.width = 640; c.height = 480;
+    const ctx = c.getContext("2d");
+    ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, 640, 480); // 白底，黑水印可见
+    drawWatermark(ctx, 640, false); // 合成模式：无镜像、按 640 宽定位
+    const px = (x, y) => { const d = ctx.getImageData(x, y, 1, 1).data; return [d[0], d[1], d[2]]; };
+    return { badge: px(20, 20), right: px(630, 19), white: px(600, 400) };
+  });
+  // 左上角徽章 = 半透明黑底（比纯白暗）
+  expect(r.badge[0]).toBeLessThan(r.white[0] - 20);
+  expect(r.badge[1]).toBeLessThan(r.white[1] - 20);
+  expect(r.badge[2]).toBeLessThan(r.white[2] - 20);
+  // flip=false → 画在左侧，右上角无徽章（纯白）
+  expect(r.right).toEqual(r.white);
+});
+
 test("手部检测点：drawHandLandmarks 画出 21 点 + 连线（无摄像头冒烟）", async ({ page }) => {
   await page.goto(BASE);
   await page.waitForFunction(() => window.__fingerPlayTest && window.__fingerPlayTest.drawHandLandmarks);

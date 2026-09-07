@@ -175,18 +175,20 @@ const WM_TEXT = "捏个框";
 const WM_FONT = 'bold 24px Nunito, "PingFang SC", "Microsoft YaHei", sans-serif';
 const WM_BADGE = { r: 0, g: 0, b: 0, a: 0.22, padX: 12, padY: 6, radius: 12 };
 
-function drawWatermark(ctx) {
+function drawWatermark(ctx, w, flip) {
   const y = WM_MARGIN;
   // 默认镜像开启：canvas 被 CSS scaleX(-1) 整个水平翻转。为了用户看到的
   // 水印始终在屏幕左上角且文字正向，镜像时把水印画到 canvas 逻辑右侧，
   // 再对水印区域做一次局部反向，抵消外层的 CSS 翻转。
-  const flip = mirrored;
+  // 合成模式传 w=canvas.width, flip=false（无镜像，水印固定左上角）。
+  w = w || liveCanvas.width;
+  flip = flip ?? mirrored;
   ctx.save();
   ctx.font = WM_FONT;
   const textW = ctx.measureText(WM_TEXT).width;
   const badgeW = WM_LOGO + WM_BADGE.padX + textW + WM_BADGE.padX;
   const badgeH = WM_LOGO + WM_BADGE.padY * 2;
-  const x = flip ? liveCanvas.width - badgeW - WM_MARGIN : WM_MARGIN;
+  const x = flip ? w - badgeW - WM_MARGIN : WM_MARGIN;
 
   if (flip) {
     ctx.translate(x + badgeW / 2, y + badgeH / 2);
@@ -2161,6 +2163,9 @@ function loop() {
   if (haveSty && Math.abs(sty.currentTime - orig.currentTime) > 0.15) {
     sty.currentTime = orig.currentTime;
   }
+
+  // 合成画布同时是预览与导出的源（captureStream 抓它），水印画在这里 → 导出也带上。
+  drawWatermark(ctx, canvas.width, false);
 }
 
 async function playThrough() {
