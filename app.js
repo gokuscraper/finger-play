@@ -2044,14 +2044,95 @@ function revealFullRadius(cx, cy, w, h) {
   );
 }
 
+// 光圈转场的离屏图层：先整帧渲染「新画面」再羽化合成，避免污染主画布。
+const revealCanvas = document.createElement("canvas");
+const revealCtx = revealCanvas.getContext("2d");
+
+// 画「框内滤镜窗口 + 框线 + 手部检测点」。frame 是框内画面源（风格化或原视频），
+// cv 是滤镜目标画布（决定特效的 width/height），W/H 是场景尺寸。
+function renderComposeFrame(c, frame, cv, W, H) {
+  if (aiSt.corners && aiSt.presence > 0.01) {
+    const plan = composeFxPlan(fxMode, aiSt.corners, aiFiveQuads, W);
+    if (plan.type === "pillar") {
+      // 四指/全能：双手张开 → 3 个指缝区各套一个滤镜（A/B/C），与录制一致。
+      renderPillar(c, cv, plan.tipsL, plan.tipsR, plan.effects, frame, aiSt.presence);
+    } else if (plan.type === "triangles") {
+      drawWindow(plan.triA, aiSt.presence, c, cv, (cc, cccv) =>
+        LIVE_EFFECTS[plan.effectA](cc, cccv, frame, plan.triA)
+      );
+      drawWindow(plan.triB, aiSt.presence, c, cv, (cc, cccv) =>
+        LIVE_EFFECTS[plan.effectB](cc, cccv, frame, plan.triB)
+      );
+    } else {
+      drawWindow(aiSt.corners, aiSt.presence, c, cv, (cc, cccv) =>
+        LIVE_EFFECTS[plan.effect](cc, cccv, frame, aiSt.corners)
+      );
+    }
+    // 四指/全能有指缝区时 renderPillar 已画彩色蚂蚁线，不再画整框线。
+    if (fxMode !== "five" && !(fxMode === "auto" && aiFiveQuads)) {
+      drawOutline(aiSt.corners, aiSt.presence, orig.currentTime, c);
+    }
+  }
+  // 合成时把录制时开的手部检测点（🖐 黑骨架）加回
+  if (showHandPoints && aiLastHands && aiLastHands.length) {
+    drawHandLandmarks(c, aiLastHands, W, H);
+  }
+}
+
+// 光圈揭示层：整帧 = base 打底 + renderComposeFrame(frame)，用径向渐变做羽化边缘，
+// 再以 (cx,cy) 半径 radius 的圆形 clip 合成到主上下文。diffusion 只在这一层发生。
+function drawIrisReveal(ctx, base, frame, cx, cy, radius, W, H) {
+  if (revealCanvas.width !== W || revealCanvas.height !== H) {
+    revealCanvas.width = W; revealCanvas.height = H;
+  }
+  const oc = revealCtx;
+  oc.clearRect(0, 0, W, H);
+  oc.drawImage(base, 0, 0, W, H);
+  renderComposeFrame(oc, frame, revealCanvas, W, H);
+
+  // 羽化：径向渐变 destination-in，中心不透明、边缘透明。
+  oc.save();
+  oc.globalCompositeOperation = "destination-in";
+  const feather = Math.min(56, radius * 0.5);
+  const g = oc.createRadialGradient(cx, cy, Math.max(0, radius - feather), cx, cy, radius);
+  g.addColorStop(0, "rgba(0,0,0,1)");
+  g.addColorStop(1, "rgba(0,0,0,0)");
+  oc.fillStyle = g;
+  oc.fillRect(0, 0, W, H);
+  oc.restore();
+
+  // 圆形 clip 合成（羽化后的圆，边缘已透明）。
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+  ctx.clip();
+  ctx.drawImage(revealCanvas, 0, 0);
+  ctx.restore();
+}
+
 let lastVideoTime = -1;
 function loop() {
   if (!orig.paused && !orig.ended) requestAnimationFrame(loop);
 
-  // 前半段：整帧画原视频，框内套风格化；后半段（中点后）：整帧画风格化，框内换回原视频。
-  const { frame, isSwapped } = composeFrameSource();
-  if (isSwapped) ctx.drawImage(sty, 0, 0, canvas.width, canvas.height);
-  else ctx.drawImage(orig, 0, 0, canvas.width, canvas.height);
+  // 前半段：框内=风格化、框外=原视频；后半段（中点后）：框内=原视频、框外=风格化。
+  // 切换不再硬切：以光圈从手指框中心向四周扩散揭示新画面。
+  const swapped = isComposeSwapped(swapCompose, haveOrig && haveSty, orig.duration, orig.currentTime);
+  const progress = swapped ? irisRevealProgress(orig.currentTime, orig.duration / 2, SWAP_DURATION) : 0;
+  const W = canvas.width, H = canvas.height;
+  if (progress > 0 && progress < 1) {
+    // 旧状态：框内=风格化、框外=原视频
+    ctx.drawImage(orig, 0, 0, W, H);
+    renderComposeFrame(ctx, sty, canvas, W, H);
+    // 新状态：光圈从框中心扩散 —— 框内=原视频、框外=风格化
+    const c = quadCentroid(aiSt.corners) || { x: W / 2, y: H / 2 };
+    const R = revealFullRadius(c.x, c.y, W, H);
+    drawIrisReveal(ctx, sty, orig, c.x, c.y, R * progress, W, H);
+  } else {
+    const base = swapped ? sty : orig;
+    const frame = swapped ? orig : sty;
+    ctx.drawImage(base, 0, 0, W, H);
+    renderComposeFrame(ctx, frame, canvas, W, H);
+  }
 
   if (landmarker && orig.currentTime !== lastVideoTime) {
     lastVideoTime = orig.currentTime;
@@ -2079,36 +2160,6 @@ function loop() {
 
   if (haveSty && Math.abs(sty.currentTime - orig.currentTime) > 0.15) {
     sty.currentTime = orig.currentTime;
-  }
-
-  if (aiSt.corners && aiSt.presence > 0.01) {
-    // 合成时把录制时选的滤镜「加回」：框内对风格化视频套滤镜（复用在线
-    // 模式同一条 LIVE_EFFECTS 管线）。录制下载的是干净源文件，特效在这里重画。
-    const plan = composeFxPlan(fxMode, aiSt.corners, aiFiveQuads, canvas.width);
-    if (plan.type === "pillar") {
-      // 四指/全能：双手张开 → 3 个指缝区各套一个滤镜（A/B/C），与录制一致。
-      renderPillar(ctx, canvas, plan.tipsL, plan.tipsR, plan.effects, frame, aiSt.presence);
-    } else if (plan.type === "triangles") {
-      drawWindow(plan.triA, aiSt.presence, ctx, canvas, (c, cv) =>
-        LIVE_EFFECTS[plan.effectA](c, cv, frame, plan.triA)
-      );
-      drawWindow(plan.triB, aiSt.presence, ctx, canvas, (c, cv) =>
-        LIVE_EFFECTS[plan.effectB](c, cv, frame, plan.triB)
-      );
-    } else {
-      drawWindow(aiSt.corners, aiSt.presence, ctx, canvas, (c, cv) =>
-        LIVE_EFFECTS[plan.effect](c, cv, frame, aiSt.corners)
-      );
-    }
-    // 四指/全能有指缝区时 renderPillar 已画彩色蚂蚁线，不再画整框线。
-    if (fxMode !== "five" && !(fxMode === "auto" && aiFiveQuads)) {
-      drawOutline(aiSt.corners, aiSt.presence, orig.currentTime, ctx);
-    }
-  }
-
-  // 合成时把录制时开的手部检测点（🖐 黑骨架）加回
-  if (showHandPoints && aiLastHands && aiLastHands.length) {
-    drawHandLandmarks(ctx, aiLastHands, canvas.width, canvas.height);
   }
 }
 
