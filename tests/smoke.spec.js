@@ -770,6 +770,38 @@ test("合成模式：光圈扩散进度/质心/覆盖半径（irisRevealProgress
   expect(r.fullR).toBeCloseTo(Math.hypot(640 - 200, 480 - 200), 5);
 });
 
+test("合成模式：光圈扩散真正按圆遮罩揭示新画面（中心=新、角落=旧）", async ({ page }) => {
+  await page.goto(BASE);
+  await page.waitForFunction(() => window.__fingerPlayTest && window.__fingerPlayTest.drawIrisReveal);
+  const r = await page.evaluate(async () => {
+    const api = window.__fingerPlayTest;
+    const W = 640, H = 480;
+    // 切到「空白」滤镜：框内直接透出源画面，便于像素断言
+    [...document.querySelectorAll(".effect-chip")].find((c) => c.dataset.effect === "none").click();
+    await new Promise((res) => setTimeout(res, 50));
+    // 旧基色红、新帧色蓝
+    const base = document.createElement("canvas"); base.width = W; base.height = H;
+    const bctx = base.getContext("2d"); bctx.fillStyle = "#ff0000"; bctx.fillRect(0, 0, W, H);
+    const frame = document.createElement("canvas"); frame.width = W; frame.height = H;
+    const fctx = frame.getContext("2d"); fctx.fillStyle = "#0000ff"; fctx.fillRect(0, 0, W, H);
+    // 手框几乎覆盖全屏（光圈中心取它的质心）
+    api.aiSt.corners = [{ x: 20, y: 20 }, { x: W - 20, y: 20 }, { x: W - 20, y: H - 20 }, { x: 20, y: H - 20 }];
+    api.aiSt.presence = 1;
+    const out = document.createElement("canvas"); out.width = W; out.height = H;
+    const octx = out.getContext("2d");
+    octx.drawImage(base, 0, 0); // 底层 = 旧画面（红）
+    api.drawIrisReveal(octx, base, frame, 320, 240, 80, W, H); // 半径 80 的光圈
+    const px = (x, y) => { const d = octx.getImageData(x, y, 1, 1).data; return [d[0], d[1], d[2]]; };
+    return { center: px(320, 240), corner: px(5, 5), outside: px(400, 360) };
+  });
+  expect(r.center[2]).toBeGreaterThan(150); // 中心 = 蓝（新画面已揭示）
+  expect(r.center[0]).toBeLessThan(80);
+  expect(r.corner[0]).toBeGreaterThan(150); // 角落 = 红（旧画面）
+  expect(r.corner[2]).toBeLessThan(80);
+  expect(r.outside[0]).toBeGreaterThan(150); // (400,360) 距圆心 hypot(80,120)=144>80 → 仍是红
+  expect(r.outside[2]).toBeLessThan(80);
+});
+
 test("手部检测点：drawHandLandmarks 画出 21 点 + 连线（无摄像头冒烟）", async ({ page }) => {
   await page.goto(BASE);
   await page.waitForFunction(() => window.__fingerPlayTest && window.__fingerPlayTest.drawHandLandmarks);

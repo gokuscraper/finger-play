@@ -2255,6 +2255,8 @@ window.__fingerPlayTest = {
   dualFrameEffect,
   composeFxPlan,
   composeFrameSource,
+  renderComposeFrame,
+  drawIrisReveal,
   irisRevealProgress,
   quadCentroid,
   revealFullRadius,
