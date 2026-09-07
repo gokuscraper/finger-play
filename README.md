@@ -19,10 +19,10 @@
 
 ## 🎬 演示视频
 
-点封面直接播放（浏览器内联播放，无需下载）：
+点封面直接播放（MP4，浏览器内联播放，无需下载）：
 
 <p align="center">
-  <a href="examples/demo/demo-0907.mov">
+  <a href="examples/demo/demo-0907.mp4">
     <img src="examples/demo/demo-0907-cover.jpg" alt="捏个框演示视频" width="480">
   </a>
 </p>

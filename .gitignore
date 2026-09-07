@@ -6,6 +6,7 @@
 !examples/final.mp4
 !examples/final.gif
 !examples/demo/*.mov
+!examples/demo/*.mp4
 
 # Python
 .venv/
