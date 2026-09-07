@@ -5,6 +5,7 @@
 # …except the checked-in example
 !examples/final.mp4
 !examples/final.gif
+!examples/demo/*.mov
 
 # Python
 .venv/

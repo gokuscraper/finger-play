@@ -17,6 +17,16 @@
 
 Finger Play is a pure-frontend finger-interaction video tool. Open your camera, frame a rectangle with your hands, and 17 filters, avatar stickers and AI restyling all take effect in the browser in real time. Record first, composite next, export and post.
 
+## 🎬 Demo video
+
+Click the cover to play it inline in the browser (no download needed):
+
+<p align="center">
+  <a href="examples/demo/demo-0907.mov">
+    <img src="examples/demo/demo-0907-cover.jpg" alt="Finger Play demo video" width="480">
+  </a>
+</p>
+
 ## Why Finger Play?
 
 - **Runs fully in the browser** — no backend, no account, no uploads; video and hand data never leave your device
